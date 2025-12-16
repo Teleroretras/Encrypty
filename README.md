@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <em>🏆 Built for Discord Buildathon 2024 🏆</em>
+  <em>🏆 Built for Discord Buildathon 2025 🏆</em>
 </p>
 
 <p align="center">
