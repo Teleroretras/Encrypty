@@ -2,7 +2,7 @@
   <img src="https://cdn.discordapp.com/avatars/1445245886526394547/40b9434fff525164716e8a09a71e7071.png?size=512" alt="CryptoBot Logo" width="200"/>
 </p>
 
-<h1 align="center">🔐 CryptoBot - Discord Encryption Bot</h1>
+<h1 align="center">🔐 Encrypty - Discord Encryption Bot</h1>
 
 <p align="center">
   <strong>The most complete encryption bot for Discord</strong>
