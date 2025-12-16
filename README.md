@@ -587,7 +587,7 @@ copies of the Software...
 
 <p align="center">
   <strong>Made with ❤️ for the Discord community</strong><br>
-  <em>🏆 Discord Buildathon 2024 Project 🏆</em>
+  <em>🏆 Discord Buildathon 2025 Project 🏆</em>
 </p>
 
 <p align="center">
