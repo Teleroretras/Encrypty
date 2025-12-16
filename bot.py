@@ -23,7 +23,6 @@ import aiohttp
 from collections import defaultdict
 from functools import wraps
 
-# ==================== LOGGING SETUP ====================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -34,32 +33,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ==================== CONFIGURATION ====================
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 if not TOKEN:
-    logger.warning("DISCORD_BOT_TOKEN no encontrado en variables de entorno")
-    logger.warning("Usa: export DISCORD_BOT_TOKEN='tu_token_aqui'")
+    logger.warning("DISCORD_BOT_TOKEN not found in environment variables")
+    logger.warning("Use: export DISCORD_BOT_TOKEN='your_token_here'")
     TOKEN = None
 
-# CLAVE MAESTRA GLOBAL para encriptar el archivo JSON
-# Esta clave debe ser la MISMA en todas las instancias del bot
-# OBLIGATORIA desde variable de entorno para funcionar en múltiples servidores
 MASTER_KEY_ENV = os.getenv('BOT_MASTER_KEY')
 
 if not MASTER_KEY_ENV:
     logger.error("=" * 60)
-    logger.error("BOT_MASTER_KEY no encontrada en variables de entorno!")
-    logger.error("Esta clave es OBLIGATORIA para que el bot funcione.")
-    logger.error("Configura: export BOT_MASTER_KEY='tu_clave_secreta_aqui'")
-    logger.error("La clave debe ser la MISMA en todos los servidores.")
+    logger.error("BOT_MASTER_KEY not found in environment variables!")
+    logger.error("This key is REQUIRED for the bot to work.")
+    logger.error("Set it with: export BOT_MASTER_KEY='your_secret_key_here'")
+    logger.error("This key must be the SAME on all servers.")
     logger.error("=" * 60)
     MASTER_KEY = None
 else:
-    # Derivar clave de 32 bytes desde la variable de entorno
     MASTER_KEY = hashlib.sha256(MASTER_KEY_ENV.encode()).digest()
-    logger.info("Clave maestra cargada desde variable de entorno")
+    logger.info("Master key loaded from environment variable")
 
-# Configuración del bot
 MESSAGE_EXPIRY_HOURS = 24
 MAX_MESSAGES_STORED = 1000
 RATE_LIMIT_SECONDS = 5
@@ -67,19 +60,15 @@ STORAGE_FILE = "encrypted_messages.enc"
 BACKUP_FILE = "encrypted_messages_backup.enc"
 STORAGE_FILE_LEGACY = "encrypted_messages.json"
 
-# Color principal para containers (mismo que encrypt)
 MAIN_COLOR = 14021125
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
-# Rate limiting storage
 user_cooldowns = defaultdict(float)
 
-# ==================== RATE LIMITING ====================
 def check_rate_limit(user_id: int) -> tuple[bool, float]:
-    """Verifica si el usuario puede ejecutar un comando"""
     current_time = time.time()
     last_use = user_cooldowns[user_id]
     
@@ -90,12 +79,9 @@ def check_rate_limit(user_id: int) -> tuple[bool, float]:
     user_cooldowns[user_id] = current_time
     return True, 0
 
-# ==================== SECURE STORAGE FUNCTIONS ====================
-
 def encrypt_storage_data(data: dict) -> bytes:
-    """Encripta los datos del almacenamiento usando AES-GCM con la clave maestra"""
     if not MASTER_KEY:
-        raise ValueError("No hay clave maestra configurada")
+        raise ValueError("No master key configured")
     
     json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
     
@@ -107,12 +93,11 @@ def encrypt_storage_data(data: dict) -> bytes:
     return nonce + encryptor.tag + ciphertext
 
 def decrypt_storage_data(encrypted_data: bytes) -> dict:
-    """Desencripta los datos del almacenamiento"""
     if not MASTER_KEY:
-        raise ValueError("No hay clave maestra configurada")
+        raise ValueError("No master key configured")
     
     if len(encrypted_data) < 28:
-        raise ValueError("Datos encriptados muy cortos")
+        raise ValueError("Encrypted data too short")
     
     nonce = encrypted_data[:12]
     tag = encrypted_data[12:28]
@@ -125,7 +110,6 @@ def decrypt_storage_data(encrypted_data: bytes) -> dict:
     return json.loads(json_data.decode('utf-8'))
 
 def hash_password(password: str, salt: bytes = None) -> tuple[str, str]:
-    """Crea un hash seguro de la contraseña usando PBKDF2"""
     if salt is None:
         salt = os.urandom(16)
     
@@ -140,7 +124,6 @@ def hash_password(password: str, salt: bytes = None) -> tuple[str, str]:
     return key.hex(), salt.hex()
 
 def verify_password(password: str, stored_hash: str, salt_hex: str) -> bool:
-    """Verifica si una contraseña coincide con el hash almacenado"""
     try:
         salt = bytes.fromhex(salt_hex)
         computed_hash, _ = hash_password(password, salt)
@@ -149,12 +132,11 @@ def verify_password(password: str, stored_hash: str, salt_hex: str) -> bool:
         return False
 
 def migrate_legacy_storage() -> dict:
-    """Migra el almacenamiento antiguo al nuevo formato encriptado"""
     if not os.path.exists(STORAGE_FILE_LEGACY):
         return {}
     
     try:
-        logger.info("Migrando almacenamiento antiguo...")
+        logger.info("Migrating legacy storage...")
         with open(STORAGE_FILE_LEGACY, 'r', encoding='utf-8') as f:
             old_data = json.load(f)
         
@@ -179,18 +161,17 @@ def migrate_legacy_storage() -> dict:
         
         backup_legacy = STORAGE_FILE_LEGACY + ".old"
         os.rename(STORAGE_FILE_LEGACY, backup_legacy)
-        logger.info(f"Migración completa. Archivo antiguo guardado como {backup_legacy}")
+        logger.info(f"Migration complete. Old file saved as {backup_legacy}")
         
         return migrated_data
         
     except Exception as e:
-        logger.error(f"Error en migración: {e}")
+        logger.error(f"Migration error: {e}")
         return {}
 
 def load_encrypted_messages() -> dict:
-    """Carga los mensajes desde el archivo encriptado"""
     if not MASTER_KEY:
-        logger.warning("No se pueden cargar mensajes sin clave maestra")
+        logger.warning("Cannot load messages without master key")
         return {}
     
     if os.path.exists(STORAGE_FILE_LEGACY) and not os.path.exists(STORAGE_FILE):
@@ -208,33 +189,31 @@ def load_encrypted_messages() -> dict:
             
             if isinstance(data, dict):
                 cleaned = cleanup_expired_messages(data)
-                logger.info(f"Cargados {len(cleaned)} mensajes (encriptados)")
+                logger.info(f"Loaded {len(cleaned)} encrypted messages")
                 return cleaned
                 
         except Exception as e:
-            logger.error(f"Error desencriptando almacenamiento: {e}")
+            logger.error(f"Error decrypting storage: {e}")
             return load_backup()
     
     return {}
 
 def load_backup() -> dict:
-    """Carga el backup encriptado si existe"""
     if os.path.exists(BACKUP_FILE):
         try:
             with open(BACKUP_FILE, 'rb') as f:
                 encrypted_data = f.read()
             
             data = decrypt_storage_data(encrypted_data)
-            logger.info("Cargado desde backup encriptado")
+            logger.info("Loaded from encrypted backup")
             return data if isinstance(data, dict) else {}
         except Exception as e:
-            logger.error(f"Error cargando backup: {e}")
+            logger.error(f"Error loading backup: {e}")
     return {}
 
 def save_encrypted_messages_internal(data: dict):
-    """Función interna para guardar datos encriptados"""
     if not MASTER_KEY:
-        logger.warning("No se pueden guardar mensajes sin clave maestra")
+        logger.warning("Cannot save messages without master key")
         return
     
     try:
@@ -242,11 +221,10 @@ def save_encrypted_messages_internal(data: dict):
         with open(STORAGE_FILE, 'wb') as f:
             f.write(encrypted_data)
     except Exception as e:
-        logger.error(f"Error guardando almacenamiento encriptado: {e}")
+        logger.error(f"Error saving encrypted storage: {e}")
         raise
 
 def save_encrypted_messages():
-    """Guarda los mensajes encriptados de forma segura"""
     if not MASTER_KEY:
         return
     
@@ -256,7 +234,7 @@ def save_encrypted_messages():
                 import shutil
                 shutil.copy2(STORAGE_FILE, BACKUP_FILE)
             except Exception as e:
-                logger.warning(f"No se pudo crear backup: {e}")
+                logger.warning(f"Could not create backup: {e}")
         
         global encrypted_messages
         encrypted_messages = cleanup_expired_messages(encrypted_messages)
@@ -269,13 +247,12 @@ def save_encrypted_messages():
             encrypted_messages = dict(sorted_msgs[-MAX_MESSAGES_STORED:])
         
         save_encrypted_messages_internal(encrypted_messages)
-        logger.debug(f"Guardados {len(encrypted_messages)} mensajes (encriptados)")
+        logger.debug(f"Saved {len(encrypted_messages)} encrypted messages")
         
     except Exception as e:
-        logger.error(f"Error guardando mensajes: {e}")
+        logger.error(f"Error saving messages: {e}")
 
 def cleanup_expired_messages(messages: dict) -> dict:
-    """Elimina mensajes que han expirado"""
     current_time = time.time()
     expiry_seconds = MESSAGE_EXPIRY_HOURS * 3600
     
@@ -287,17 +264,13 @@ def cleanup_expired_messages(messages: dict) -> dict:
     
     removed = len(messages) - len(cleaned)
     if removed > 0:
-        logger.info(f"Eliminados {removed} mensajes expirados")
+        logger.info(f"Removed {removed} expired messages")
     
     return cleaned
 
-# Cargar mensajes al iniciar
 encrypted_messages = load_encrypted_messages()
 
-# ==================== HELPER FUNCTIONS ====================
-
 def get_valid_key_bytes(key_str: str, length: int) -> bytes:
-    """Genera una clave de bytes segura usando PBKDF2"""
     salt = b'discord_encryption_bot_v2'
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -309,17 +282,14 @@ def get_valid_key_bytes(key_str: str, length: int) -> bytes:
     return kdf.derive(key_str.encode())
 
 def get_key_bytes_simple(key_str: str, length: int) -> bytes:
-    """Método simple para clásicos (compatibilidad)"""
     hashed = hashlib.sha256(key_str.encode()).digest()
     return hashed[:length]
 
 def generate_secure_password(length: int = 16) -> str:
-    """Genera una contraseña segura"""
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 def calculate_entropy(password: str) -> float:
-    """Calcula la entropía de una contraseña en bits"""
     charset_size = 0
     
     if any(c.islower() for c in password):
@@ -340,97 +310,80 @@ def calculate_entropy(password: str) -> float:
     return entropy
 
 def estimate_crack_time(password: str) -> tuple[str, str]:
-    """
-    Estima el tiempo para crackear una contraseña
-    Asume 10 billones de intentos por segundo (GPU moderna)
-    """
     entropy = calculate_entropy(password)
-    
-    # 10 billones = 10^10 intentos por segundo
     attempts_per_second = 10_000_000_000
-    
-    # Número total de combinaciones posibles
     total_combinations = 2 ** entropy
-    
-    # Tiempo promedio (mitad de combinaciones)
     seconds = total_combinations / (2 * attempts_per_second)
     
-    # Convertir a unidades legibles
     if seconds < 0.001:
-        time_str = "Instantáneo"
-        security = "Crítico"
+        time_str = "Instant"
+        security = "Critical"
     elif seconds < 1:
-        time_str = f"{seconds * 1000:.2f} milisegundos"
-        security = "Muy Bajo"
+        time_str = f"{seconds * 1000:.2f} milliseconds"
+        security = "Very Low"
     elif seconds < 60:
-        time_str = f"{seconds:.2f} segundos"
-        security = "Bajo"
+        time_str = f"{seconds:.2f} seconds"
+        security = "Low"
     elif seconds < 3600:
-        time_str = f"{seconds / 60:.2f} minutos"
-        security = "Bajo"
+        time_str = f"{seconds / 60:.2f} minutes"
+        security = "Low"
     elif seconds < 86400:
-        time_str = f"{seconds / 3600:.2f} horas"
-        security = "Medio"
+        time_str = f"{seconds / 3600:.2f} hours"
+        security = "Medium"
     elif seconds < 86400 * 30:
-        time_str = f"{seconds / 86400:.2f} días"
-        security = "Medio"
+        time_str = f"{seconds / 86400:.2f} days"
+        security = "Medium"
     elif seconds < 86400 * 365:
-        time_str = f"{seconds / (86400 * 30):.2f} meses"
-        security = "Bueno"
+        time_str = f"{seconds / (86400 * 30):.2f} months"
+        security = "Good"
     elif seconds < 86400 * 365 * 100:
-        time_str = f"{seconds / (86400 * 365):.2f} años"
-        security = "Muy Bueno"
+        time_str = f"{seconds / (86400 * 365):.2f} years"
+        security = "Very Good"
     elif seconds < 86400 * 365 * 1000:
-        time_str = f"{seconds / (86400 * 365):.0f} años"
-        security = "Excelente"
+        time_str = f"{seconds / (86400 * 365):.0f} years"
+        security = "Excellent"
     elif seconds < 86400 * 365 * 1_000_000:
-        time_str = f"{seconds / (86400 * 365 * 1000):.0f} milenios"
-        security = "Excelente"
+        time_str = f"{seconds / (86400 * 365 * 1000):.0f} millennia"
+        security = "Excellent"
     elif seconds < 86400 * 365 * 1_000_000_000:
-        time_str = f"{seconds / (86400 * 365 * 1_000_000):.0f} millones de años"
-        security = "Impenetrable"
+        time_str = f"{seconds / (86400 * 365 * 1_000_000):.0f} million years"
+        security = "Unbreakable"
     else:
-        time_str = "Más que la edad del universo"
-        security = "Impenetrable"
+        time_str = "Longer than the age of the universe"
+        security = "Unbreakable"
     
     return time_str, security
 
 def calculate_password_strength(password: str) -> tuple[int, str, str, str]:
-    """Calcula la fortaleza de una contraseña (0-100) y tiempo de crackeo"""
     score = 0
     
-    # Longitud
     if len(password) >= 8: score += 20
     if len(password) >= 12: score += 10
     if len(password) >= 16: score += 10
     
-    # Tipos de caracteres
     if any(c.islower() for c in password): score += 15
     if any(c.isupper() for c in password): score += 15
     if any(c.isdigit() for c in password): score += 15
     if any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password): score += 15
     
-    # Penalizaciones
     if password.lower() in ['password', '123456', 'qwerty', 'admin', '12345678']:
         score = 0
     
     if score < 30:
-        strength = "Muy débil"
+        strength = "Very weak"
     elif score < 50:
-        strength = "Débil"
+        strength = "Weak"
     elif score < 70:
-        strength = "Moderada"
+        strength = "Moderate"
     elif score < 90:
-        strength = "Fuerte"
+        strength = "Strong"
     else:
-        strength = "Muy fuerte"
+        strength = "Very strong"
     
     crack_time, security_level = estimate_crack_time(password)
     entropy = calculate_entropy(password)
     
     return score, strength, crack_time, f"{entropy:.1f} bits"
-
-# ==================== HASH FUNCTIONS ====================
 
 def hash_md5(text: str) -> str:
     return hashlib.md5(text.encode()).hexdigest()
@@ -462,8 +415,6 @@ HASH_FUNCTIONS = {
     'blake2b': {'func': hash_blake2b, 'name': 'BLAKE2b', 'bits': 512},
     'blake2s': {'func': hash_blake2s, 'name': 'BLAKE2s', 'bits': 256},
 }
-
-# ==================== CLASSICAL ENCRYPTION FUNCTIONS ====================
 
 def caesar_encrypt(text: str, key: str) -> str:
     try:
@@ -891,8 +842,6 @@ def xor_decrypt(text: str, key: str) -> str:
     except Exception as e:
         return f"[Error: {str(e)[:50]}]"
 
-# ==================== MODERN / BLOCK CIPHERS ====================
-
 def rc4_encrypt(text: str, key: str) -> str:
     if not key:
         key = "default"
@@ -1181,8 +1130,6 @@ def seed_decrypt(text: str, key: str) -> str:
     except Exception as e:
         return f"[Error: {str(e)[:50]}]"
 
-# ==================== CIPHER DICTIONARY ====================
-
 CIPHERS = {
     'cesar': {'encrypt': caesar_encrypt, 'decrypt': caesar_decrypt, 'name': 'Caesar Cipher', 'category': 'classical'},
     'rot13': {'encrypt': rot13_encrypt, 'decrypt': rot13_decrypt, 'name': 'ROT13', 'category': 'classical'},
@@ -1216,10 +1163,7 @@ CIPHERS = {
     'seed': {'encrypt': seed_encrypt, 'decrypt': seed_decrypt, 'name': 'SEED (Korean Std)', 'category': 'block'},
 }
 
-# ==================== VIEWS ====================
-
 def create_decrypt_view(msg_id: str, cipher_name: str, encrypted_text: str, author_name: str):
-    """Factory for the Decrypt View"""
     display_text = encrypted_text[:800] + "..." if len(encrypted_text) > 800 else encrypted_text
     
     class DecryptView(discord.ui.LayoutView):
@@ -1244,7 +1188,6 @@ def create_decrypt_view(msg_id: str, cipher_name: str, encrypted_text: str, auth
     return DecryptView()
 
 def create_container_view(content: str, footer: str = None, color: int = MAIN_COLOR):
-    """Crea un container view genérico"""
     class ContainerView(discord.ui.LayoutView):
         pass
     
@@ -1261,8 +1204,6 @@ def create_container_view(content: str, footer: str = None, color: int = MAIN_CO
         )
     
     return ContainerView()
-
-# ==================== MODALS ====================
 
 class DecryptModal(Modal, title='Decrypt Message'):
     msg_id = None
@@ -1311,7 +1252,7 @@ class DecryptModal(Modal, title='Decrypt Message'):
                     data['key_salt'] = key_salt
                     del data['original_key']
                     save_encrypted_messages()
-                    logger.info(f"Migrado mensaje {self.msg_id} a formato seguro")
+                    logger.info(f"Migrated message {self.msg_id} to secure format")
                 else:
                     is_correct = False
 
@@ -1388,8 +1329,6 @@ class HashModal(Modal, title='Generate Hash'):
             )
         
         await interaction.response.send_message(view=HashView(), ephemeral=True)
-
-# ==================== COMMANDS ====================
 
 @tree.command(name='encrypt', description='Encrypt text requiring a password')
 async def encrypt_command(interaction: discord.Interaction):
@@ -1657,8 +1596,6 @@ async def security_info_command(interaction: discord.Interaction):
     
     await interaction.response.send_message(view=SecurityView(), ephemeral=True)
 
-# ==================== INTERACTION HANDLER ====================
-
 @client.event
 async def on_interaction(interaction: discord.Interaction):
     if interaction.type == discord.InteractionType.component:
@@ -1755,10 +1692,7 @@ async def on_interaction(interaction: discord.Interaction):
                 )
             await interaction.response.send_message(view=ErrorView(), ephemeral=True)
 
-# ==================== BACKGROUND TASKS ====================
-
 async def cleanup_task():
-    """Tarea en segundo plano para limpiar mensajes expirados"""
     while True:
         await asyncio.sleep(3600)
         global encrypted_messages
@@ -1767,8 +1701,6 @@ async def cleanup_task():
         if old_count != len(encrypted_messages):
             save_encrypted_messages()
             logger.info(f"Cleanup: {old_count - len(encrypted_messages)} messages removed")
-
-# ==================== START ====================  
 
 @client.event
 async def on_ready():
@@ -1796,8 +1728,6 @@ async def on_ready():
         logger.warning('Consider deleting it securely (contains plain text keys)')
     
     client.loop.create_task(cleanup_task())
-
-# ==================== RUN ====================
 
 if __name__ == "__main__":
     if not MASTER_KEY:
