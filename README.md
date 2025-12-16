@@ -591,10 +591,10 @@ copies of the Software...
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/your-server">
+  <a href="https://discord.gg/discord-developers">
     <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"/>
   </a>
-  <a href="https://github.com/your-username/cryptobot-discord">
+  <a href="https://github.com/Teleroretras/Encrypty">
     <img src="https://img.shields.io/badge/GitHub-Repo-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub"/>
   </a>
 </p>
