@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <em>🏆 Built for Discord Buildathon 2024 🏆</em>
+</p>
+
+<p align="center">
   <a href="#-features">Features</a> •
   <a href="#-installation">Installation</a> •
   <a href="#-commands">Commands</a> •
@@ -582,7 +586,8 @@ copies of the Software...
 ---
 
 <p align="center">
-  <strong>Made with ❤️ for the Discord community</strong>
+  <strong>Made with ❤️ for the Discord community</strong><br>
+  <em>🏆 Discord Buildathon 2024 Project 🏆</em>
 </p>
 
 <p align="center">
